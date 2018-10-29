@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"strings"
+	"path/filepath"
 )
 
 func main() {
@@ -22,6 +21,24 @@ func main() {
 	}
 }
 
+func dirTree(out io.Writer, path string, printFiles bool) error {
+	visit := func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			fmt.Println("dir:  ", path)
+		} /* else {
+			fmt.Println("file: ", path)
+		}*/
+		return nil
+	}
+
+	err := filepath.Walk(path, visit)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return nil
+}
+
+/*
 func dirTree(out io.Writer, path string, printFiles bool) error {
 	var txt string
 	var level int
@@ -52,3 +69,4 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 	fmt.Fprintln(out, txt)
 	return nil
 }
+*/
