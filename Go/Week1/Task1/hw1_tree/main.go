@@ -25,9 +25,9 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 
 	flag := false
 
-	var tree func(root, indent string, offFile bool) error
+	var tree func(root, indent string) error
 
-	tree = func(root, indent string, offFile bool) error {
+	tree = func(root, indent string) error {
 		fi, err := os.Stat(root)
 		if err != nil {
 			return fmt.Errorf("could not stat %s: %v", root, err)
@@ -56,7 +56,7 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 				if err != nil {
 					fmt.Errorf("could not stat %s: %v", filepath.Join(root, fi.Name()), err)
 				}
-				if !fi.IsDir() && offFile {
+				if !fi.IsDir() && !printFiles {
 					continue
 				}
 
@@ -73,7 +73,7 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 				fmt.Printf(indent + "├───")
 			}
 
-			if err := tree(filepath.Join(root, name), indent+add, offFile); err != nil {
+			if err := tree(filepath.Join(root, name), indent+add); err != nil {
 				return err
 			}
 		}
@@ -81,7 +81,7 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 		return nil
 	}
 
-	if err := tree(path, "", !printFiles); err != nil {
+	if err := tree(path, ""); err != nil {
 		return err
 	}
 	return nil
