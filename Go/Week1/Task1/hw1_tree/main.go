@@ -34,10 +34,11 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 		}
 		if fi.IsDir() {
 			if flag {
-				fmt.Println(fi.Name())
+				fmt.Fprintln(out, fi.Name())
 			}
 		} else {
-			fmt.Println(fi.Name())
+			fmt.Fprintf(out, fi.Name())
+			fmt.Fprintln(out, size(fi.Size()))
 			return nil
 		}
 		flag = true
@@ -67,10 +68,10 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 		for i, name := range names {
 			add := "│	"
 			if i == len(names)-1 {
-				fmt.Printf(indent + "└───")
+				fmt.Fprintf(out, indent + "└───")
 				add = "	"
 			} else {
-				fmt.Printf(indent + "├───")
+				fmt.Fprintf(out, indent + "├───")
 			}
 
 			if err := tree(filepath.Join(root, name), indent+add); err != nil {
@@ -85,4 +86,9 @@ func dirTree(out io.Writer, path string, printFiles bool) error {
 		return err
 	}
 	return nil
+}
+
+func size(sz int64) string {
+	if sz == 0 { return " (empty)"}
+	return " (" + fmt.Sprint(sz) + "b)"
 }
