@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
@@ -22,51 +22,57 @@ func main() {
 }
 
 func dirTree(out io.Writer, path string, printFiles bool) error {
-	visit := func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			fmt.Println("dir:  ", path)
-		} /* else {
-			fmt.Println("file: ", path)
-		}*/
+	if err := tree(path, "", !printFiles); err != nil {
+		return err
+	}
+	return nil
+}
+
+func tree(root, indent string, offFile bool) error {
+	fi, err := os.Stat(root)
+	if err != nil {
+		return fmt.Errorf("could not stat %s: %v", root, err)
+	}
+	fmt.Println(fi.Name())
+	if !fi.IsDir() {
 		return nil
 	}
 
-	err := filepath.Walk(path, visit)
+	fis, err := ioutil.ReadDir(root)
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("could not read dir %s: %v", root, err)
 	}
-	return nil
-}
 
-/*
-func dirTree(out io.Writer, path string, printFiles bool) error {
-	var txt string
-	var level int
+	var names []string
+	for _, fi := range fis {
+		if fi.Name()[0] != '.' {
 
-	var visit func(prev, dir string)
-	visit = func(prev, dir string) {
-		level++
-		fmt.Println(strings.Repeat("\t", level-1) + dir)
-		//txt = txt + dir + "\n"
-		_ = txt
-
-		files, err := ioutil.ReadDir(prev + "/" + dir)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		for _, file := range files {
-			if file.IsDir() {
-				visit(prev+"/"+dir, file.Name())
+			// check if file -f continue
+			fi, err := os.Stat(filepath.Join(root, fi.Name()))
+			if err != nil {
+				fmt.Errorf("could not stat %s: %v", filepath.Join(root, fi.Name()), err)
 			}
+			if !fi.IsDir() && offFile {
+				continue
+			}
+
+			names = append(names, fi.Name())
 		}
-		level--
 	}
 
-	visit(".", path)
-	// ├ ─ └ │
-	//fmt.Println(path)
-	fmt.Fprintln(out, txt)
+	for i, name := range names {
+		add := "│  "
+		if i == len(names)-1 {
+			fmt.Printf(indent + "└───")
+			add = "   "
+		} else {
+			fmt.Printf(indent + "├───")
+		}
+
+		if err := tree(filepath.Join(root, name), indent+add, offFile); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
-*/
