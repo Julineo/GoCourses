@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"sync"
+	"sort"
+	"strconv"
 )
 
 func ExecutePipeline(fs ...job) {
@@ -27,16 +29,38 @@ func ExecutePipeline(fs ...job) {
 }
 
 func SingleHash(in, out chan interface{}) {
-	fmt.Println(1)
-	out <- 1
+	fmt.Println("f1")
+	for val := range in {
+		step := strconv.Itoa(val.(int))
+		out <- DataSignerCrc32(step) + "~" + DataSignerCrc32(DataSignerMd5(step))
+	}
 }
 
 func MultiHash(in, out chan interface{}) {
-	fmt.Println(2)
-	out <- 2
+	fmt.Println("f2")
+	ths := []string{"0", "1", "2", "3", "4", "5"}
+	for val := range in {
+		step := ""
+		for _, th := range ths {
+			tmp := DataSignerCrc32(th + val.(string))
+			step += tmp
+		}
+		out <- step
+	}
 }
 
 func CombineResults(in, out chan interface{}) {
-	fmt.Println(3)
-	out <- 3
+	fmt.Println("f3")
+	ar := []string{}
+	for val := range in {
+		tmp := val.(string)
+		ar = append(ar, tmp)
+	}
+	sort.Strings(ar)
+	res := ar[0]
+	for i := 1; i < len(ar); i++ {
+		res += "_" + ar[i]
+	}
+	fmt.Println(res)
+	out <- res
 }
