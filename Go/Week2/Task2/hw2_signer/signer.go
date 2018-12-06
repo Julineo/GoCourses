@@ -82,24 +82,17 @@ func MultiHash(in, out chan interface{}) {
 }
 
 func multiHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup /*, mux *sync.Mutex*/) {
-	/*fmt.Println("f2")
-	ths := []string{"0", "1", "2", "3", "4", "5"}
-	for val := range in {
-		step := ""
-		for _, th := range ths {
-			tmp := DataSignerCrc32(th + val.(string))
-			step += tmp
-		}
-		out <- step
-	}
-	*/
 	data := dat.(string)
 
 	ths := []string{"0", "1", "2", "3", "4", "5"}
 	step := ""
 	for _, th := range ths {
-		tmp := DataSignerCrc32(th + data)
-		step += tmp
+		tmpChan := make(chan string)
+		go func() {
+			tmpChan <- DataSignerCrc32(th + data)
+		}()
+		fmt.Println("data: ", data, "th: ", th, "step: ", step)
+		step += <-tmpChan
 	}
 	out <- step
 
