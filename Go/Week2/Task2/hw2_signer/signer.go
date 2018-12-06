@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"sync"
 	"sort"
+	"sync"
 )
 
 func ExecutePipeline(fs ...job) {
@@ -47,28 +47,26 @@ func SingleHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup,
 	md5Data := DataSignerMd5(data)
 	mux.Unlock()
 
-	// crc32md5Data concurently with variable (not correct) you might get a race
-	crc32md5Data := ""
-	go func() {
-		crc32md5Data = DataSignerCrc32(md5Data)
-	}()
-
-
-	// crc32md5Data concurently with channel
-/*	tmpChan := make(chan string)
+	// crc32md5Data concurently with variable (not correct) you'll  get a race
+	/*	crc32md5Data := ""
+		go func() {
+			crc32md5Data = DataSignerCrc32(md5Data)
+		}()
+	*/
+	// crc32md5Data concurently with channel (correct implementation)
+	tmpChan := make(chan string)
 	go func() {
 		tmpChan <- DataSignerCrc32(md5Data)
 	}()
 	crc32md5Data := <-tmpChan
-*/
+
 	crc32Data := DataSignerCrc32(data)
 
-//	fmt.Println("data: ", data, "crc32Data: ", crc32Data)
-//	fmt.Println("data: ", data, "md5Data: ", md5Data)
+	//	fmt.Println("data: ", data, "crc32Data: ", crc32Data)
+	//	fmt.Println("data: ", data, "md5Data: ", md5Data)
 	out <- crc32Data + "~" + crc32md5Data
 	wg.Done()
 }
-
 
 func MultiHash(in, out chan interface{}) {
 	fmt.Println("f2")
