@@ -34,13 +34,13 @@ func SingleHash(in, out chan interface{}) {
 
 	for dat := range in {
 		wg.Add(1)
-		go SingleHashWorker(dat, out, wg, mux)
+		go singleHashWorker(dat, out, wg, mux)
 	}
 
 	wg.Wait()
 }
 
-func SingleHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup, mux *sync.Mutex) {
+func singleHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup, mux *sync.Mutex) {
 	data := fmt.Sprintf("%v", dat.(int))
 
 	mux.Lock()
@@ -69,7 +69,20 @@ func SingleHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup,
 }
 
 func MultiHash(in, out chan interface{}) {
-	fmt.Println("f2")
+
+	wg := &sync.WaitGroup{}
+	//	mux := &sync.Mutex{}
+
+	for dat := range in {
+		wg.Add(1)
+		go multiHashWorker(dat, out, wg /*, mux*/)
+	}
+
+	wg.Wait()
+}
+
+func multiHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup /*, mux *sync.Mutex*/) {
+	/*fmt.Println("f2")
 	ths := []string{"0", "1", "2", "3", "4", "5"}
 	for val := range in {
 		step := ""
@@ -79,6 +92,18 @@ func MultiHash(in, out chan interface{}) {
 		}
 		out <- step
 	}
+	*/
+	data := dat.(string)
+
+	ths := []string{"0", "1", "2", "3", "4", "5"}
+	step := ""
+	for _, th := range ths {
+		tmp := DataSignerCrc32(th + data)
+		step += tmp
+	}
+	out <- step
+
+	wg.Done()
 }
 
 func CombineResults(in, out chan interface{}) {
