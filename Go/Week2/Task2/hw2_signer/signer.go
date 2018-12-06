@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 	"sort"
-	"time"
 )
 
 func ExecutePipeline(fs ...job) {
@@ -29,38 +28,47 @@ func ExecutePipeline(fs ...job) {
 }
 
 func SingleHash(in, out chan interface{}) {
-	fmt.Println("f1")
 
 	wg := &sync.WaitGroup{}
-	mu := &sync.Mutex{}
+	mux := &sync.Mutex{}
 
 	for dat := range in {
 		wg.Add(1)
-		go singleHashHelper(dat, out, wg, mu)
+		go SingleHashWorker(dat, out, wg, mux)
 	}
 
 	wg.Wait()
 }
 
-func singleHashHelper(dat interface{}, out chan interface{}, wg *sync.WaitGroup, mu *sync.Mutex) {
-	defer wg.Done()
+func SingleHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup, mux *sync.Mutex) {
 	data := fmt.Sprintf("%v", dat.(int))
 
-	// mutex lock, so DataSignerMd5 run only one at a time
-	mu.Lock()
-	md5 := DataSignerMd5(data)
-	mu.Unlock()
+	mux.Lock()
+	md5Data := DataSignerMd5(data)
+	mux.Unlock()
 
-	tmpChan := make(chan string)
-	// run DataSignerCrc32 concurently with another DataSignerCrc32
-	go func(data string) {
-		tmpChan <- DataSignerCrc32(data)
-	}(data)
+	// crc32md5Data concurently with variable (not correct) you might get a race
+	crc32md5Data := ""
+	go func() {
+		crc32md5Data = DataSignerCrc32(md5Data)
+	}()
 
-	cr32data := <-tmpChan
 
-	out <- cr32data + "~" + DataSignerCrc32(md5)
+	// crc32md5Data concurently with channel
+/*	tmpChan := make(chan string)
+	go func() {
+		tmpChan <- DataSignerCrc32(md5Data)
+	}()
+	crc32md5Data := <-tmpChan
+*/
+	crc32Data := DataSignerCrc32(data)
+
+//	fmt.Println("data: ", data, "crc32Data: ", crc32Data)
+//	fmt.Println("data: ", data, "md5Data: ", md5Data)
+	out <- crc32Data + "~" + crc32md5Data
+	wg.Done()
 }
+
 
 func MultiHash(in, out chan interface{}) {
 	fmt.Println("f2")
@@ -83,10 +91,7 @@ func CombineResults(in, out chan interface{}) {
 		ar = append(ar, tmp)
 	}
 	sort.Strings(ar)
-	fmt.Println("t1")
-	time.Sleep(time.Millisecond * 5000)
 	res := ar[0]
-	fmt.Println("t2")
 	for i := 1; i < len(ar); i++ {
 		res += "_" + ar[i]
 	}
