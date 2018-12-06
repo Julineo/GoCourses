@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"sync"
 	"sort"
-	"strconv"
+	"time"
 )
 
 func ExecutePipeline(fs ...job) {
 
-	ch1 := make(chan interface{})
+	var ch1 chan interface{}
 	wg := &sync.WaitGroup{}
 
 	for _, f := range fs {
@@ -30,10 +30,36 @@ func ExecutePipeline(fs ...job) {
 
 func SingleHash(in, out chan interface{}) {
 	fmt.Println("f1")
-	for val := range in {
-		step := strconv.Itoa(val.(int))
-		out <- DataSignerCrc32(step) + "~" + DataSignerCrc32(DataSignerMd5(step))
+
+	wg := &sync.WaitGroup{}
+	mu := &sync.Mutex{}
+
+	for dat := range in {
+		wg.Add(1)
+		go singleHashHelper(dat, out, wg, mu)
 	}
+
+	wg.Wait()
+}
+
+func singleHashHelper(dat interface{}, out chan interface{}, wg *sync.WaitGroup, mu *sync.Mutex) {
+	defer wg.Done()
+	data := fmt.Sprintf("%v", dat.(int))
+
+	// mutex lock, so DataSignerMd5 run only one at a time
+	mu.Lock()
+	md5 := DataSignerMd5(data)
+	mu.Unlock()
+
+	tmpChan := make(chan string)
+	// run DataSignerCrc32 concurently with another DataSignerCrc32
+	go func(data string) {
+		tmpChan <- DataSignerCrc32(data)
+	}(data)
+
+	cr32data := <-tmpChan
+
+	out <- cr32data + "~" + DataSignerCrc32(md5)
 }
 
 func MultiHash(in, out chan interface{}) {
@@ -57,7 +83,10 @@ func CombineResults(in, out chan interface{}) {
 		ar = append(ar, tmp)
 	}
 	sort.Strings(ar)
+	fmt.Println("t1")
+	time.Sleep(time.Millisecond * 5000)
 	res := ar[0]
+	fmt.Println("t2")
 	for i := 1; i < len(ar); i++ {
 		res += "_" + ar[i]
 	}

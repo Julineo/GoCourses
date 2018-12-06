@@ -1,0 +1,66 @@
+package main
+
+import (
+	"fmt"
+	"sync"
+	"sort"
+	"strconv"
+)
+
+func ExecutePipeline(fs ...job) {
+
+	ch1 := make(chan interface{})
+	wg := &sync.WaitGroup{}
+
+	for _, f := range fs {
+
+		ch2 := make(chan interface{})
+		wg.Add(1)
+
+		go func(f job, ch1, ch2 chan interface{}) {
+			defer wg.Done()
+			f(ch1, ch2)
+			close(ch2)
+		}(f, ch1, ch2)
+
+		ch1 = ch2
+	}
+	wg.Wait()
+}
+
+func SingleHash(in, out chan interface{}) {
+	fmt.Println("f1")
+	for val := range in {
+		step := strconv.Itoa(val.(int))
+		out <- DataSignerCrc32(step) + "~" + DataSignerCrc32(DataSignerMd5(step))
+	}
+}
+
+func MultiHash(in, out chan interface{}) {
+	fmt.Println("f2")
+	ths := []string{"0", "1", "2", "3", "4", "5"}
+	for val := range in {
+		step := ""
+		for _, th := range ths {
+			tmp := DataSignerCrc32(th + val.(string))
+			step += tmp
+		}
+		out <- step
+	}
+}
+
+func CombineResults(in, out chan interface{}) {
+	fmt.Println("f3")
+	ar := []string{}
+	for val := range in {
+		tmp := val.(string)
+		ar = append(ar, tmp)
+	}
+	sort.Strings(ar)
+	res := ar[0]
+	for i := 1; i < len(ar); i++ {
+		res += "_" + ar[i]
+	}
+	fmt.Println(res)
+	out <- res
+}
