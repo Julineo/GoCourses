@@ -1,0 +1,51 @@
+// Why is this code runs sequentially?
+
+package main
+
+import (
+	"fmt"
+	"time"
+	"hash/crc32"
+	"strconv"
+)
+
+func main() {
+	ch := make(chan interface{})
+	defer close(ch)
+	go Worker("some string", ch)
+
+	fmt.Println(<-ch)
+}
+
+func Worker(dat interface{}, out chan interface{}) {
+	data := dat.(string)
+
+	ths := []string{"0", "1", "2", "3", "4", "5"}
+	step := ""
+	for _, th := range ths {
+		tmpChan := make(chan string)
+		go func() {
+			tmpChan <- SignerCrc32(th + data)
+		}()
+		step += <-tmpChan
+		fmt.Println("data: ", data, "th: ", th, "step: ", step)
+	}
+	out <- step
+}
+
+func SignerCrc32(data string) string {
+	crcH := crc32.ChecksumIEEE([]byte(data))
+	dataHash := strconv.FormatUint(uint64(crcH), 10)
+	time.Sleep(time.Second)
+	return dataHash
+}
+
+/*
+You are running it concurrently, but you're waiting for the result to arrive. 
+
+SignerCrc32 runs in a separate goroutine. It takes it 1 second to 
+return the result. During that time, the Worker for loop is waiting to 
+read from tmpChan. When SignerCrc32 returns, the result is written to 
+tmpChan, for loop iterates once, creates another goroutine, and starts 
+waiting to read from tmpChan again, which will come in one second. 
+*/
