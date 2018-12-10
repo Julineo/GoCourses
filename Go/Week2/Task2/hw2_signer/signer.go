@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"sort"
-	"sync"
 	"strings"
-	"strconv"
+	"sync"
+	"time"
 )
+
+const th = 6
 
 func ExecutePipeline(fs ...job) {
 
@@ -44,11 +46,11 @@ func SingleHash(in, out chan interface{}) {
 
 func singleHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup, mux *sync.Mutex) {
 	data := fmt.Sprintf("%v", dat.(int))
+	start := time.Now()
 
 	mux.Lock()
 	md5Data := DataSignerMd5(data)
 	mux.Unlock()
-
 	// crc32md5Data concurently with variable (not correct) you'll  get a race
 	/*	crc32md5Data := ""
 		go func() {
@@ -60,18 +62,20 @@ func singleHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup,
 	go func() {
 		tmpChan <- DataSignerCrc32(md5Data)
 	}()
-	crc32md5Data := <-tmpChan
+
+	start = time.Now()
 
 	crc32Data := DataSignerCrc32(data)
 
 	//	fmt.Println("data: ", data, "crc32Data: ", crc32Data)
 	//	fmt.Println("data: ", data, "md5Data: ", md5Data)
+	crc32md5Data := <-tmpChan
 	out <- crc32Data + "~" + crc32md5Data
 	wg.Done()
+	fmt.Println(data, time.Since(start))
 }
 
 func MultiHash(in, out chan interface{}) {
-
 	wg := &sync.WaitGroup{}
 
 	for dat := range in {
@@ -82,60 +86,33 @@ func MultiHash(in, out chan interface{}) {
 	wg.Wait()
 }
 
-/*
 func multiHashWorker(dat interface{}, out chan interface{}, wg *sync.WaitGroup) {
+	start := time.Now()
 	data := dat.(string)
-	mux := &sync.Mutex{}
+	//	mux := &sync.Mutex{}
 	wg2 := &sync.WaitGroup{}
 
-	ths := []string{"0", "1", "2", "3", "4", "5"}
-	step := ""
-	for _, th := range ths {
-		wg2.Add(1)
-		th := th
+	arr := make([]string, th)
+	wg2.Add(th)
+	for i := 0; i < th; i++ {
+		i := i
 		go func() {
-			crc32 := DataSignerCrc32(th + data)
+			icrc32 := DataSignerCrc32(fmt.Sprintf("%v", i) + data)
 
-			mux.Lock()
-			step += crc32
-			fmt.Println("data: ", data, "th: ", th, "ss: ", step)
-			mux.Unlock()
+			//			mux.Lock()
+			arr[i] = icrc32
+			//	fmt.Println("data: ", data, "th: ", i, "ss: ", arr[i])
+			//			mux.Unlock()
 
 			wg2.Done()
 		}()
 	}
 	wg2.Wait()
-	out <- step
+	res := strings.Join(arr, "")
+
+	out <- res
 	wg.Done()
-}
-*/
-
-func multiHashWorker(in interface{}, out chan interface{}, wg *sync.WaitGroup) {
-	Th := 6
-	defer wg.Done()
-	mu := &sync.Mutex{}
-	wgCrc32 := &sync.WaitGroup{}
-
-	concatArray := make([]string, Th)
-//	step := ""
-	for i := 0; i < Th; i++ {
-		wgCrc32.Add(1)
-		data := strconv.Itoa(i) + in.(string)
-		go func(data string, index int, wg *sync.WaitGroup, mu *sync.Mutex) {
-			defer wg.Done()
-			data = DataSignerCrc32(data)
-			mu.Lock()
-			concatArray[index] = data
-			//step += data
-			fmt.Printf("%s MultiHash: crc32(th+step1)) %d %s\n", in, index, data)
-			mu.Unlock()
-		}(data, i, wgCrc32, mu)
-	}
-	wgCrc32.Wait()
-	result := strings.Join(concatArray, "")
-//	result := step
-	fmt.Printf("%s MultiHash result: %s\n", in, result)
-	out <- result
+	fmt.Println("multi: ", time.Since(start))
 }
 
 func CombineResults(in, out chan interface{}) {
